@@ -18,7 +18,7 @@
     <parent>
         <groupId>org.apache.nifi</groupId>
         <artifactId>nifi-amqp-bundle</artifactId>
-        <version>0.1.0-incubating</version>
+        <version>0.2.1</version>
     </parent>
     <groupId>org.apache.nifi</groupId>
     <artifactId>nifi-amqp-processor</artifactId>
@@ -62,18 +62,9 @@
             <groupId>org.apache.qpid</groupId>
             <artifactId>qpid-common</artifactId>
         </dependency>
-        <!-- RABBITMQ Libraries -->
         <dependency>
-	       <groupId>com.rabbitmq</groupId>
-	       <artifactId>amqp-client</artifactId>
-        </dependency>
-        <dependency>
-	   <groupId>commons-lang</groupId>
-	   <artifactId>commons-lang</artifactId>	   
-    </dependency>
-        <!-- dependency>
-            <groupId>rabbitmq.client</groupId>
-            <artifactId>rabbitmq.client</artifactId>
-        </dependency -->
+	      <groupId>commons-lang</groupId>
+	      <artifactId>commons-lang</artifactId>	   
+       </dependency>
     </dependencies>
 </project>
