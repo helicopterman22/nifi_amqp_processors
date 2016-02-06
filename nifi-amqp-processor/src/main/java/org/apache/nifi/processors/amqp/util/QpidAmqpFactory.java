@@ -20,18 +20,11 @@ import static org.apache.nifi.processors.amqp.util.AmqpProperties.ACKNOWLEDGEMEN
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.ACK_MODE_AUTO;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.CLIENT_ID_PREFIX;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.DESTINATION_NAME;
-import static org.apache.nifi.processors.amqp.util.AmqpProperties.QPID_AMQP_PROVIDER;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.MESSAGE_SELECTOR;
-//import static org.apache.nifi.processors.amqp.util.AmqpProperties.PASSWORD;
+import static org.apache.nifi.processors.amqp.util.AmqpProperties.QPID_AMQP_PROVIDER;
+import static org.apache.nifi.processors.amqp.util.AmqpProperties.SERVICE_PROVIDER;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.TIMEOUT;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.URL;
-//import static org.apache.nifi.processors.amqp.util.AmqpProperties.USERNAME;
-
-
-
-
-
-
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
@@ -63,22 +56,18 @@ import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-import org.apache.nifi.stream.io.ByteArrayOutputStream;
 import org.apache.nifi.processor.ProcessContext;
-import org.apache.nifi.processors.amqp.util.WrappedMessageConsumer;
+import org.apache.nifi.stream.io.ByteArrayOutputStream;
 import org.apache.qpid.client.AMQQueue;
 import org.apache.qpid.url.URLSyntaxException;
 
-//import org.apache.activemq.ActiveMQConnectionFactory;
-//import org.apache.activemq.command.ActiveMQQueue;
-//import org.apache.activemq.command.ActiveMQTopic;
 
 public class QpidAmqpFactory {
 	
 	final static Logger logger = Logger.getLogger("org.apache.nifi.processors.amqp.util.AmqpFactory.class");
 
     public static final boolean DEFAULT_IS_TRANSACTED = false;
-    public static final String ATTRIBUTE_PREFIX = "AMQP.";
+    public static final String ATTRIBUTE_PREFIX = "amqp.";
     public static final String ATTRIBUTE_TYPE_SUFFIX = ".type";
     public static final String CLIENT_ID_FIXED_PREFIX = "NiFi-";
 
@@ -114,21 +103,11 @@ public class QpidAmqpFactory {
         Objects.requireNonNull(clientId);
 
         final ConnectionFactory connectionFactory = createConnectionFactory(context,keystoreFile, keystorePasswd, truststoreFile, truststorePasswd);
-
-       // final String username = context.getProperty(USERNAME).getValue();
-       // final String password = context.getProperty(PASSWORD).getValue();
         final Connection connection = connectionFactory.createConnection();
-
-        //connection.setClientID(clientId);
         connection.start();
         return connection;
     }
 
- /*   public static Connection createConnection(final String url, final String AMQPProvider, final String username, final String password, final int timeoutMillis) throws JMSException {
-        final ConnectionFactory connectionFactory = createConnectionFactory(url, timeoutMillis, AMQPProvider);
-        return (username == null && password == null) ? connectionFactory.createConnection() : connectionFactory.createConnection(username, password);
-    }
-*/
     public static String createClientId(final ProcessContext context) {
         final String clientIdPrefix = context.getProperty(CLIENT_ID_PREFIX).getValue();
         return CLIENT_ID_FIXED_PREFIX + (clientIdPrefix == null ? "" : clientIdPrefix) + "-" + UUID.randomUUID().toString();
@@ -136,7 +115,11 @@ public class QpidAmqpFactory {
 
     public static boolean clientIdPrefixEquals(final String one, final String two) {
         if (one == null) {
-            return two == null;
+        	if (two == null){
+        		return true;
+        	}else{
+        		return false;
+        	}
         } else if (two == null) {
             return false;
         }
@@ -144,7 +127,10 @@ public class QpidAmqpFactory {
         if (one.length() <= uuidLen || two.length() <= uuidLen) {
             return false;
         }
-        return one.substring(0, one.length() - uuidLen).equals(two.substring(0, two.length() - uuidLen));
+        if (!one.substring(0,one.length() - uuidLen).equals(two.subSequence(0, two.length() - uuidLen))){
+            return false;
+        }
+        return true;
     }
 
     public static byte[] createByteArray(final Message message) throws JMSException {
@@ -213,8 +199,9 @@ public class QpidAmqpFactory {
                 // will fail if Object is not Serializable
                 oos.writeObject(message.getObject());
                 oos.flush();
-            }
-            return baos.toByteArray();
+                oos.close();
+                return baos.toByteArray();
+            }           
         } catch (IOException e) {
             return new byte[0];
         }
@@ -250,11 +237,14 @@ public class QpidAmqpFactory {
 
             return new WrappedMessageConsumer(connection, amqpSession, messageConsumer);
         } catch (JMSException e) {
+        	logger.severe("Caught Exception in createQueueMessageComsumer: " + e);
             if (amqpSession != null) {
                 amqpSession.close();
+                logger.severe("amqpSession was null");
             }
             if (connection != null) {
                 connection.close();
+                logger.severe("Connection was null");
             }
             throw e;
         }
@@ -352,7 +342,7 @@ public class QpidAmqpFactory {
     }
 
     public static Queue createQueue(final ProcessContext context, final String queueName) throws URISyntaxException {
-        return createQueue(context.getProperty(QPID_AMQP_PROVIDER).getValue(), queueName);
+        return createQueue(context.getProperty(SERVICE_PROVIDER).getValue(), queueName);
     }
 
     public static Queue createQueue(final String amqpProvider, final String queueName) throws URISyntaxException{
@@ -375,7 +365,7 @@ public class QpidAmqpFactory {
     private static ConnectionFactory createConnectionFactory(final ProcessContext context, final String keystoreFile, final String keystorePasswd, final String truststoreFile, final String truststorePasswd) throws JMSException, URLSyntaxException {
         final String url = context.getProperty(URL).getValue();
         final int timeoutMillis = context.getProperty(TIMEOUT).asTimePeriod(TimeUnit.MILLISECONDS).intValue();
-        final String provider = context.getProperty(QPID_AMQP_PROVIDER).getValue();
+        final String provider = context.getProperty(SERVICE_PROVIDER).getValue();
         return createConnectionFactory(url, timeoutMillis, provider,keystoreFile, keystorePasswd, truststoreFile, truststorePasswd);
     }
 

@@ -31,7 +31,7 @@ import static org.apache.nifi.processors.amqp.util.AmqpProperties.ATTRIBUTES_TO_
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.BATCH_SIZE;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.CLIENT_ID_PREFIX;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.DESTINATION_NAME;
-//import static org.apache.nifi.processors.amqp.util.AmqpProperties.DESTINATION_TYPE;
+import static org.apache.nifi.processors.amqp.util.AmqpProperties.HEADERS;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.SERVICE_PROVIDER;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.MAX_BUFFER_SIZE;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.MESSAGE_PRIORITY;
@@ -42,16 +42,10 @@ import static org.apache.nifi.processors.amqp.util.AmqpProperties.MSG_TYPE_EMPTY
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.MSG_TYPE_STREAM;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.MSG_TYPE_TEXT;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.MSG_TYPE_MAP;
-//import static org.apache.nifi.processors.amqp.util.AmqpProperties.PASSWORD;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.REPLY_TO_QUEUE;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.SSL_CONTEXT_SVC;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.TIMEOUT;
 import static org.apache.nifi.processors.amqp.util.AmqpProperties.URL;
-//import static org.apache.nifi.processors.amqp.util.AmqpProperties.USERNAME;
-
-
-
-
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,6 +57,7 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +96,7 @@ import org.apache.nifi.ssl.SSLContextService;
 import org.apache.nifi.stream.io.StreamUtils;
 import org.apache.qpid.url.URLSyntaxException;
 
-@Tags({"amqp", "send", "put"})
+@Tags({"amqp", "send", "put", "ssl", "headers"})
 @CapabilityDescription("Creates a AMQP Message from the contents of a FlowFile and sends the message to a AMQP Server")
 public class PutAMQP extends AbstractProcessor {
 
@@ -130,12 +125,10 @@ public class PutAMQP extends AbstractProcessor {
         descriptors.add(SERVICE_PROVIDER);
         descriptors.add(URL);
         descriptors.add(DESTINATION_NAME);
-        //descriptors.add(DESTINATION_TYPE);
+        descriptors.add(HEADERS);
         descriptors.add(TIMEOUT);
         descriptors.add(BATCH_SIZE);
         descriptors.add(SSL_CONTEXT_SVC);
-        //descriptors.add(USERNAME);
-        //descriptors.add(PASSWORD);
         descriptors.add(MESSAGE_TYPE);
         descriptors.add(MESSAGE_PRIORITY);
         descriptors.add(REPLY_TO_QUEUE);
@@ -153,6 +146,7 @@ public class PutAMQP extends AbstractProcessor {
 
     @Override
     protected List<PropertyDescriptor> getSupportedPropertyDescriptors() {
+    	//properties.add(URL);
         return properties;
     }
 
@@ -162,7 +156,8 @@ public class PutAMQP extends AbstractProcessor {
     }
 
     @OnScheduled
-    public void inintializeSSSL(ProcessContext context) throws GeneralSecurityException, IOException {
+   // public void inintializeSSSL(ProcessContext context) throws GeneralSecurityException, IOException {
+    public void intializeSSL(ProcessContext context) throws GeneralSecurityException, IOException {
     	SSLContextService sslCntxtSvc = context.getProperty(SSL_CONTEXT_SVC).asControllerService(SSLContextService.class);
     	if (sslCntxtSvc != null){
     		if (!sslCntxtSvc.isTrustStoreConfigured()){
@@ -224,14 +219,14 @@ public class PutAMQP extends AbstractProcessor {
                 wrappedProducer = QpidAmqpFactory.createMessageProducer(context, true, keystore, keystorePasswd, truststore, truststorePasswd);
                 logger.info("Connected to AMQP server {}", new Object[]{context.getProperty(URL).getValue()});
             } catch (final JMSException | URLSyntaxException e) {
-                logger.error("Failed to connect to JMS Server due to {}", new Object[]{e});
+                logger.error("Failed to connect to AMQP Server due to {}", new Object[]{e});
                 session.transfer(flowFiles, REL_FAILURE);
                 context.yield();
                 return;
             }
         }
 
-        final Session jmsSession = wrappedProducer.getSession();
+        final Session amqpSession = wrappedProducer.getSession();
         final MessageProducer producer = wrappedProducer.getProducer();
 
         final int maxBufferSize = context.getProperty(MAX_BUFFER_SIZE).asDataSize(DataUnit.B).intValue();
@@ -265,12 +260,12 @@ public class PutAMQP extends AbstractProcessor {
                     final Integer priorityInt = context.getProperty(MESSAGE_PRIORITY).evaluateAttributeExpressions(flowFile).asInteger();
                     priority = priorityInt == null ? priority : priorityInt;
                 } catch (final NumberFormatException e) {
-                    logger.warn("Invalid value for JMS Message Priority: {}; defaulting to priority of {}",
+                    logger.warn("Invalid value for AMQP Message Priority: {}; defaulting to priority of {}",
                             new Object[]{context.getProperty(MESSAGE_PRIORITY).evaluateAttributeExpressions(flowFile).getValue(), DEFAULT_MESSAGE_PRIORITY});
                 }
 
                 try {
-                    final Message message = createMessage(jmsSession, context, messageContent, flowFile, replyToQueue, priority);
+                    final Message message = createMessage(amqpSession, context, messageContent, flowFile, replyToQueue, priority);
                     if (ttl == null) {
                         producer.setTimeToLive(0L);
                     } else {
@@ -278,14 +273,14 @@ public class PutAMQP extends AbstractProcessor {
                     }
                     producer.send(message);
                 } catch (final JMSException e) {
-                    logger.error("Failed to send {} to JMS Server due to {}", new Object[]{flowFile, e});
+                    logger.error("Failed to send {} to AMQP Server due to {}", new Object[]{flowFile, e});
                     session.transfer(flowFiles, REL_FAILURE);
                     context.yield();
 
                     try {
-                        jmsSession.rollback();
+                        amqpSession.rollback();
                     } catch (final JMSException jmse) {
-                        logger.warn("Unable to roll back JMS Session due to {}", new Object[]{jmse});
+                        logger.warn("Unable to roll back AMQP Session due to {}", new Object[]{jmse});
                     }
 
                     wrappedProducer.close(logger);
@@ -297,19 +292,18 @@ public class PutAMQP extends AbstractProcessor {
             }
 
             try {
-                jmsSession.commit();
+                amqpSession.commit();
 
                 session.transfer(successfulFlowFiles, REL_SUCCESS);
                 final String flowFileDescription = successfulFlowFiles.size() > 10 ? successfulFlowFiles.size() + " FlowFiles" : successfulFlowFiles.toString();
-                logger.info("Sent {} to JMS Server and transferred to 'success'", new Object[]{flowFileDescription});
+                logger.info("Sent {} to AMQP Server and transferred to 'success'", new Object[]{flowFileDescription});
             } catch (JMSException e) {
-                logger.error("Failed to commit JMS Session due to {}; rolling back session", new Object[]{e});
+                logger.error("Failed to commit AMQP Session due to {}; rolling back session", new Object[]{e});
                 session.rollback();
                 wrappedProducer.close(logger);
             }
         } catch (URISyntaxException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
+			logger.error("URI Syntax Exception Caught " + e1);
 		} finally {
             if (!wrappedProducer.isClosed()) {
                 producerQueue.offer(wrappedProducer);
@@ -317,32 +311,32 @@ public class PutAMQP extends AbstractProcessor {
         }
     }
 
-    private Message createMessage(final Session jmsSession, final ProcessContext context, final byte[] messageContent,
+    private Message createMessage(final Session amqpSession, final ProcessContext context, final byte[] messageContent,
             final FlowFile flowFile, final Destination replyToQueue, final Integer priority) throws JMSException {
         final Message message;
 
         switch (context.getProperty(MESSAGE_TYPE).getValue()) {
             case MSG_TYPE_EMPTY: {
-                message = jmsSession.createTextMessage("");
+                message = amqpSession.createTextMessage("");
                 break;
             }
             case MSG_TYPE_STREAM: {
-                final StreamMessage streamMessage = jmsSession.createStreamMessage();
+                final StreamMessage streamMessage = amqpSession.createStreamMessage();
                 streamMessage.writeBytes(messageContent);
                 message = streamMessage;
                 break;
             }
             case MSG_TYPE_TEXT: {
-                message = jmsSession.createTextMessage(new String(messageContent, UTF8));
+                message = amqpSession.createTextMessage(new String(messageContent, UTF8));
                 break;
             }
             case MSG_TYPE_MAP: {
-                message = jmsSession.createMapMessage();
+                message = amqpSession.createMapMessage();
                 break;
             }
             case MSG_TYPE_BYTE:
             default: {
-                final BytesMessage bytesMessage = jmsSession.createBytesMessage();
+                final BytesMessage bytesMessage = amqpSession.createBytesMessage();
                 bytesMessage.writeBytes(messageContent);
                 message = bytesMessage;
             }
@@ -359,13 +353,39 @@ public class PutAMQP extends AbstractProcessor {
         }
 
         if (context.getProperty(ATTRIBUTES_TO_AMQP_PROPS).asBoolean()) {
-            copyAttributesToJmsProps(flowFile, message);
+            copyAttributesToAmqpProps(flowFile, message);
+        }
+        
+        //Add the headers to the message if the destination is using a headers exchange
+        if (context.getProperty(DESTINATION_NAME).getValue().contains("amq.match")){
+        	final Map<String,String> headersMap = getMessageHeadersAsMap(context.getProperty(HEADERS).getValue());
+        	for (Map.Entry<String, String> entry : headersMap.entrySet()){
+        		final String headerName = entry.getKey();
+        		final String headerValue = entry.getValue();
+        		message.setStringProperty(headerName, headerValue);
+        	}
         }
 
         return message;
     }
 
-    /**
+    private Map<String, String> getMessageHeadersAsMap(final String headersStr) {
+		final ProcessorLog logger = getLogger();
+		final Map <String,String> headersMap = new HashMap<String,String>();
+		
+		final String [] headersList = headersStr.split(",");
+		for (int x = 0; x < headersList.length; x++){
+			final String[] headersElements = headersList[x].split(":");
+			if (headersElements.length > 1){
+				headersMap.put(headersElements[0],headersElements[1] );
+			}else{
+				logger.error("Header " + headersElements[0] + " is not of the correct format and will not be used");
+			}
+		}
+		return headersMap;
+	}
+
+	/**
      * Iterates through all of the flow file's metadata and for any metadata key that starts with <code>jms.</code>, the value for the corresponding key is written to the 
 JMS message as a property.
      * The name of this property is equal to the key of the flow file's metadata minus the <code>jms.</code>. For example, if the flowFile has a metadata entry:
@@ -391,7 +411,7 @@ S property will not be added
      * @param message The JMS message to which we want to add properties.
      * @throws JMSException ex
      */
-    private void copyAttributesToJmsProps(final FlowFile flowFile, final Message message) throws JMSException {
+    private void copyAttributesToAmqpProps(final FlowFile flowFile, final Message message) throws JMSException {
         final ProcessorLog logger = getLogger();
 
         final Map<String, String> attributes = flowFile.getAttributes();

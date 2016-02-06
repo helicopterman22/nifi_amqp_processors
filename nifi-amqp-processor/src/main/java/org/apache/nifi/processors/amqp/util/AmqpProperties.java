@@ -24,17 +24,8 @@ import org.apache.nifi.ssl.SSLContextService;
 public class AmqpProperties {
 
     public static final String QPID_AMQP_PROVIDER = "Qpid";
-    public static final String RABBITMQ_AMQP_PROVIDER = "Rabbitmq";
-    public static final String CAMEL_RABBITMQ_AMQP_PROVIDER = "CamelRabbitmq";
     public static final String ACK_MODE_CLIENT = "Client Acknowledge";
     public static final String ACK_MODE_AUTO = "Auto Acknowledge";
-
-    public static final String DESTINATION_TYPE_QUEUE = "Queue";
-    public static final String DESTINATION_TYPE_TOPIC = "Topic";
-    public static final String DESTINATION_EXCHANGE_NAME = "amq.match";
-    public static final String DESTINATION_ROUTING_KEY = "test";
-    public static final String DESTINATION_VHOST = "/";
-
     public static final String MSG_TYPE_BYTE = "byte";
     public static final String MSG_TYPE_TEXT = "text";
     public static final String MSG_TYPE_STREAM = "stream";
@@ -50,13 +41,6 @@ public class AmqpProperties {
             .allowableValues(QPID_AMQP_PROVIDER)
             .defaultValue(QPID_AMQP_PROVIDER)
             .build();
-    public static final PropertyDescriptor RABBITMQ_CLIENT_PROVIDER = new PropertyDescriptor.Builder()
-    .name("Rabbitmq Client Provider")
-    .description("The Provider used for the AMQP Server")
-    .required(true)
-    .allowableValues(RABBITMQ_AMQP_PROVIDER, CAMEL_RABBITMQ_AMQP_PROVIDER)
-    .defaultValue(RABBITMQ_AMQP_PROVIDER)
-    .build();
     public static final PropertyDescriptor URL = new PropertyDescriptor.Builder()
             .name("URL")
             .description("The URL of the AMQP Server")
@@ -70,20 +54,7 @@ public class AmqpProperties {
             .addValidator(StandardValidators.TIME_PERIOD_VALIDATOR)
             .defaultValue("30 sec")
             .build();
-  /*  public static final PropertyDescriptor USERNAME = new PropertyDescriptor.Builder()
-            .name("Username")
-            .description("Username used for authentication and authorization")
-            .required(false)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .build();
-    public static final PropertyDescriptor PASSWORD = new PropertyDescriptor.Builder()
-            .name("Password")
-            .description("Password used for authentication and authorization")
-            .required(false)
-            .addValidator(Validator.VALID)
-            .sensitive(true)
-            .build();
-            */
+ 
     public static final PropertyDescriptor CLIENT_ID_PREFIX = new PropertyDescriptor.Builder()
             .name("Client ID Prefix")
             .description("A human-readable ID that can be used to associate connections with yourself so that the maintainers of the AMQP Server know who to contact if problems arise")
@@ -98,38 +69,14 @@ public class AmqpProperties {
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
-    public static final PropertyDescriptor DESTINATION_TYPE = new PropertyDescriptor.Builder()
-            .name("Destination Type")
-            .description("The type of the AMQP Destination to use")
+    public static final PropertyDescriptor HEADERS = new PropertyDescriptor.Builder()
+            .name("Headers List")
+            .description("A list of Headers to use with an amqp.match(headers exchange). These should be in the format <header name>:<header value>,<header name>:<header value> etc")
             .required(false)
-            .allowableValues(DESTINATION_TYPE_QUEUE, DESTINATION_TYPE_TOPIC)
-            .defaultValue(DESTINATION_TYPE_QUEUE)
+            .expressionLanguageSupported(false)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
-
-    public static final PropertyDescriptor EXCHANGE_NAME = new PropertyDescriptor.Builder()
-    		.name("Exchange Name")
-    		.description("The name of the Exchange to use")
-    		.required(false)
-    		.defaultValue(DESTINATION_EXCHANGE_NAME)
-    		.addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-    		.build();
-    
-    public static final PropertyDescriptor ROUTING_KEY = new PropertyDescriptor.Builder()
-			.name("Routing Key")
-			.description("The Routing Key taht binds the Queue/Topic to the destination")
-			.required(false)
-			.defaultValue(DESTINATION_ROUTING_KEY)
-			.addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-			.build();
-    
-    public static final PropertyDescriptor VIRTUAL_HOST = new PropertyDescriptor.Builder()
-			.name("Virtual Host")
-			.description("The Virtual Host on which the Exchange is hosted")
-			.required(false)
-			.defaultValue(DESTINATION_VHOST)
-			.addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-			.build();
-    
+   
     public static final PropertyDescriptor SSL_CONTEXT_SVC = new PropertyDescriptor.Builder()
     		.name("SSL Context Service Id")
     		.description("The ID of the SSL Context Controller Service. Needed when using secure connections to AMQP")

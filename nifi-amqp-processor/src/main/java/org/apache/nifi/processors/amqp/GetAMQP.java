@@ -16,9 +16,6 @@
  */
 package org.apache.nifi.processors.amqp;
 
-import static org.apache.nifi.processors.amqp.util.AmqpProperties.SSL_CONTEXT_SVC;
-import static org.apache.nifi.processors.amqp.util.AmqpProperties.URL;
-
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -35,6 +32,7 @@ import org.apache.nifi.processors.amqp.util.WrappedMessageConsumer;
 import org.apache.nifi.processors.amqp.util.KeyStoreToJKS;
 import org.apache.nifi.annotation.behavior.EventDriven;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
+import org.apache.nifi.annotation.behavior.TriggerWhenEmpty;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
@@ -54,48 +52,13 @@ import org.apache.nifi.ssl.SSLContextService;
  * that is applied to all incoming flow files. An action is comprised of an
  * attribute key and a format string. The format string supports the following
  * parameters.
- * <ul>
- * <li>%1 - is the random generated UUID. </li>
- * <li>%2 - is the current calendar time. </li>
- * <li>${"attribute.key") - is the flow file attribute value of the key
- * contained within the brackets.</li>
- * </ul>
- *
- * When creating the optional properties, enter the attribute key as the
- * property name and the desired format string as the value. The optional
- * properties are considered default actions and are applied unconditionally.
- *
- * In addition to the default actions, this processor has a user interface (UI)
- * where conditional actions can be specified. In the UI, rules can be created.
- * Rules are comprised of an arbitrary number of conditions and actions. In
- * order for a rule to be activated, all conditions must evaluate to true.
- *
- * A rule condition is comprised of an attribute key and a regular expression. A
- * condition evaluates to true when the flowfile contains the attribute
- * specified and it's value matches the specified regular expression.
- *
- * A rule action follows the same definition as a rule above. It includes an
- * attribute key and a format string. The format string supports the same
- * parameters defined above.
- *
- * When a rule is activated (because conditions evaluate to true), all actions
- * in that rule are executed. Once each action has been applied, any remaining
- * default actions will be applied. This means that if rule action and a default
- * action modify the same attribute, only the rule action will execute. Default
- * actions will only execute when the attribute in question is not modified as
- * part of an activated rule.
- *
- * The incoming flow file is cloned for each rule that is activated. If no rule
- * is activated, any default actions are applied to the original flowfile and it
- * is transferred.
- *
- * This processor only supports a SUCCESS relationship.
- *
+ **    REWRITE THIS BIT
  * Note: In order for configuration changes made in the custom UI to take
  * effect, the processor must be stopped and started.
  */
 @EventDriven
 @SideEffectFree
+@TriggerWhenEmpty
 @Tags({"amqp", "listen", "consume", "ssl", "queue", "topic"})
 @CapabilityDescription("Pulls messages from an AMQP Queue, creating a FlowFile for each AMQP Message or bundle of messages")
 public class GetAMQP extends AmqpConsumer {
@@ -182,9 +145,7 @@ public class GetAMQP extends AmqpConsumer {
         	if (wrappedConsumer.noMessageCountExceedsLimit()){
         		//Close and reconnect right away
         		wrappedConsumer.close(logger);
-        		try{
-        			
-        		
+        		try{      		
         		    wrappedConsumer = QpidAmqpFactory.createQueueMessageConsumer(context, keystore, keystorePasswd, truststore, truststorePasswd);
         		    logger.info("Connected to AMQP server {}", new Object[] {context.getProperty(URL).getValue()}) ;
         		}

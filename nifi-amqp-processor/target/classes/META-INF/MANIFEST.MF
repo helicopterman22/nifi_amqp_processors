@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+Implementation-Title: nifi-amqp-processor
+Implementation-Version: 0.4.1
+Built-By: david
+Specification-Vendor: Apache NiFi Project
+Specification-Title: nifi-amqp-processor
+Implementation-Vendor-Id: org.apache.nifi
+Build-Jdk: 1.8.0_66
+Specification-Version: 0.4.1
+Created-By: Maven Integration for Eclipse
+Implementation-Vendor: Apache NiFi Project
+
